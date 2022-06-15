@@ -12,7 +12,9 @@ It is my hope that these exercises will eventually be self-explanatory.
 However, in their current state the design may be difficult to understand without the accompanying lecture covering both algorithms for reconfiguration and the main workings of the Gorum RPC framework.
 
 
-## Installation instructions
+## Getting started
 
 You should have a recent version of Go installed. Installation instructions can be found [here](https://go.dev/doc/install).
 
+To get started, clone this repository and open the [storage](./storage/) folder in your favorite Golang editor.
+Being done with the exercises their, do the same with the [reconfstorage](./reconfstorage/) folder.
