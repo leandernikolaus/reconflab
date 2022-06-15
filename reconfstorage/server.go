@@ -145,24 +145,8 @@ func (s *storageServer) WriteConfig(req *proto.Config) (*proto.WriteResponse, er
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	if len(s.configs) > 0 && s.configs[0].GetStarted() && s.configs[0].GetTime().AsTime().After(req.GetTime().AsTime()) {
-		// An oldd configuration, ignore
-		return &proto.WriteResponse{New: false, Config: s.configs}, nil
-	}
+	// add new configuration, consider if it is old or started.
 
-	if req.GetStarted() {
-		confs := make([]*proto.Config, len(s.configs))
-		confs = append(confs, req)
-		for _, c := range s.configs {
-			if req.GetTime().AsTime().Before(c.Time.AsTime()) {
-				confs = append(confs, c)
-			}
-		}
-		s.configs = confs
-		return &proto.WriteResponse{New: true, Config: s.configs}, nil
-	}
-
-	s.configs = append(s.configs, req)
 	return &proto.WriteResponse{New: true, Config: s.configs}, nil
 }
 

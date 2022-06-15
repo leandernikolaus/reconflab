@@ -126,12 +126,8 @@ func (s *storageServer) Write(req *proto.WriteRequest) (*proto.WriteResponse, er
 	s.logger.Printf("Write '%s' = '%s'\n", req.GetKey(), req.GetValue())
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	oldState, ok := s.storage[req.GetKey()]
-	if ok && oldState.Time.After(req.GetTime().AsTime()) {
-		return &proto.WriteResponse{New: false}, nil
-	}
-	s.storage[req.GetKey()] = state{Value: req.GetValue(), Time: req.GetTime().AsTime()}
-	return &proto.WriteResponse{New: true}, nil
+
+	return &proto.WriteResponse{New: false}, nil
 }
 
 // Write writes a new value to storage if it is newer than the old value

@@ -39,6 +39,11 @@ func (s *storageServer) Write(req *proto.WriteRequest) (*proto.WriteResponse, er
 }
 ```
 
+To compare `s.Time` and `req.Time` you can use:
+```go
+s.Time.Before(req.GetTime().AsTime())
+```
+
 ### #2 Write the quorum function for writes
 
 A quorum call invokes a write-RPC on multiple processes.
@@ -59,6 +64,8 @@ func (q qspec) WriteQCQF(in *proto.WriteRequest, replies map[uint32]*proto.Write
 }
 ```
 
+
+
 ### #3 Experiment with the REPL
 
 Compile the code and run the repl with the 4 default servers:
@@ -68,10 +75,13 @@ go build
 ./storage
 ```
 
-Try the following:
+*Try the following:*
 * Invoke a quorum call writing to all servers: `qc write foo bar```
 * Invoke an individual rpc on server 0 overwriting the previous value: `rpc 0 write foo spam`
 * Invoke an individual rpc on server 1 writing to a new key: `rpc 0 write hello world`
 * Invoke a quorum call to read the value `qc read foo` *Do you read the first or second value every time?*
 * Change the default configuration on the client to only include servers 1,2,3: `cfg 1-4`
 * Invoke a quorum call listing all available keys: `qc list`
+
+*If different read-PRCs in one quorum call return values with different timestamps, which one is returned?*
+Clue: Check the `ReadQCQF` in `qspec.go`.

@@ -123,21 +123,10 @@ func (client) readQC(key string, cfg *proto.Configuration) *proto.ReadResponse {
 }
 
 func (c *client) write(key, value string) *proto.WriteResponse {
-	confmap := map[string]*proto.Config{c.pcfg.Time.String(): c.pcfg}
 
-	new := true
+	// TODO perform the write on c.cfg and all its successors
 
-	for min := getMin(confmap); min != ""; {
-		cfg := c.parseConfiguration(confmap[min].Adds)
-		minresp := c.writeQC(key, value, cfg)
-
-		new = new && minresp.GetNew()
-
-		confmap = c.addConfigs(confmap, confmap[min], minresp.GetConfig())
-		delete(confmap, min)
-
-	}
-	return &proto.WriteResponse{New: new}
+	return &proto.WriteResponse{New: false}
 }
 
 func (client) writeQC(key, value string, cfg *proto.Configuration) *proto.WriteResponse {
@@ -191,6 +180,26 @@ func (client) listQC(cfg *proto.Configuration) *proto.ListResponse {
 	return resp
 }
 
+func (c *client) writeConfig(target *proto.Config) *proto.WriteResponse {
+	confmap := map[string]*proto.Config{c.pcfg.Time.String(): c.pcfg}
+
+	for min := getMin(confmap); min != ""; {
+
+		if target.GetTime().AsTime().Before(confmap[min].GetTime().AsTime()) {
+			return &proto.WriteResponse{New: false}
+		}
+
+		cfg := c.parseConfiguration(confmap[min].Adds)
+		minresp := c.writeConfigQC(target, cfg)
+
+		confmap = c.addConfigs(confmap, confmap[min], minresp.GetConfig())
+		delete(confmap, min)
+
+	}
+
+	return &proto.WriteResponse{New: true}
+}
+
 func (client) writeConfigQC(conf *proto.Config, cfg *proto.Configuration) *proto.WriteResponse {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	resp, err := cfg.WriteConfigQC(ctx, conf)
@@ -205,26 +214,16 @@ func (client) writeConfigQC(conf *proto.Config, cfg *proto.Configuration) *proto
 func (c *client) reconf(newAdds string) {
 
 	goalProtoConf := &proto.Config{Adds: newAdds, Started: false, Time: timestamppb.Now()}
+	// create a Configuration used for quorum calls.
 	goalCfg := c.parseConfiguration(newAdds)
-	// stop old and inform about new config
-	c.writeConfigQC(goalProtoConf, c.cfg)
 
-	// transfer state
-	list := c.listQC(c.cfg)
-	for _, key := range list.GetKeys() {
-		value := c.read(key)
+	// TODO: perform reconfiguration
 
-		//TODO: abort if a start configuration with larger timestamp than goalCfg is found
-
-		if value.GetOK() {
-			c.writeQC(key, value.GetValue(), goalCfg)
-		}
-	}
-
-	// start new config
 	goalProtoConf.Started = true
-	c.writeConfigQC(goalProtoConf, goalCfg)
+
+	// update the default configuration used by the client
 	c.cfg = goalCfg
+	c.pcfg = goalProtoConf
 }
 
 func (c client) parseConfiguration(cfgStr string) (cfg *proto.Configuration) {
