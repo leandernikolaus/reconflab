@@ -6,6 +6,12 @@ Exercises are small programming tasks. Examples are build using the [Gorums](htt
 * [storage](./storage/) contains some small tasks to get to know the example application and the Gorums framework.
 * [reconfstorage](./reconfstorage/) contains tasks to implement reconfiguration mechanisms for the same application.
 
+## Disclaimer
+
+It is my hope that these exercises will eventually be self-explanatory. 
+However, in their current state the design may be difficult to understand without the accompanying lecture covering both algorithms for reconfiguration and the main workings of the Gorum RPC framework.
+
+
 ## Installation instructions
 
 You should have a recent version of Go installed. Installation instructions can be found [here](https://go.dev/doc/install).
