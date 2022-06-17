@@ -145,7 +145,10 @@ func (s *storageServer) WriteConfig(req *proto.MetaConfig) (*proto.WriteResponse
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	// add new configuration, consider if it is old or started.
+	// TODO:
+	// store new MetaConfig in the servers list,
+	// consider if it is started
+	// consider if it is older than a started configuration
 
 	return &proto.WriteResponse{New: true, MConfigs: s.configs}, nil
 }

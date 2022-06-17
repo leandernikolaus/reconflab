@@ -16,16 +16,16 @@ We use a somewhat simplified variant to represent servers in a configuration as 
 
 *Method `c.parseConfiguration()` in `client.go` can be used to convert these string into a `Configuration` from the Gorums library, on which quorum call can be invoked.*
 
-Meta-information about configurations is represented as protobuf `Config` message:
+Meta-information about configurations is represented as protobuf `MetaConfig` message:
 ```protobuf
-message Config {
+message MetaConfig {
   bool Started = 1;
   string Adds = 2;
   google.protobuf.Timestamp Time = 3;
 }
 ```
 
-* `Adds` represents the servers in the above string notation.
+* `Adds` represents the servers (addresses) in the above string notation.
 * `Time` is a timestamp to distinguish old and new configurations.
 * `Started` indicates whether a reconfiguration towards this configuration was completed.
 
@@ -35,32 +35,38 @@ message Config {
 
 In this system, the server does not handle RPCs differently depending on the configuration on which they are invoked. 
 Indeed, the servers does not receive this information.
-However, the server does store some Configuration information and returns this to the client on RPCs.
+However, the server does store some Meta Configurations and returns them to the client on RPCs.
 `read`, `write`, and `list` RPCs now also return a list of configurations.
 The Quorum functions in `qspec.go` have been updated to combine and de-dublicate the lists received from individual RPCs.
 
-The Gorums server includes a new Quorum Call `WriteConfigQC` this can be used to inform the servers about a new configuration.
+The Gorums server includes a new Quorum Call `WriteMetaConfQC` this can be used to inform the servers about a new configuration.
 
 ## Tasks
 
 ### #1 Configuration handling server side
 
 
-Implement the RPC handler used to handle a `WriteConfigQC`.
+Implement the RPC handler used to handle a `WriteMetaConfQC`.
 
-Add the new configuration to the `s.configs`. However, consider the following:
+Store the new meta-configuration in the servers list `s.configs`. 
+Note that typically a server will first receive a configuration as not started, and later receive the 
+same configuration again, but this time with `Started: true`.
+On initialisation, the list `s.configs` may be empty.
+Consider the following:
 
 **If a server knows a started configuration all earlier configurations (lower timestamp) can be removed.**
 
 
 *Complete the following stub in `server.go`:*
 ```go
-func (s *storageServer) WriteConfig(req *proto.Config) (*proto.WriteResponse, error) {
+func (s *storageServer) WriteConfig(req *proto.MetaConfig) (*proto.WriteResponse, error) {
 	s.logger.Printf("Config '%s', started: '%t'\n", req.GetAdds(), req.GetStarted())
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	// add new configuration, consider if it is started
+	// TODO:
+	// store new MetaConfig in the servers list, 
+	// consider if it is started
 	// consider if it is older than a started configuration
 
 	return &proto.WriteResponse{New: true, MConfigs s.configs}, nil
@@ -102,7 +108,7 @@ func (c *client) reconf(newAdds string) {
 ### #3 Perform writes during a reconfiguration
 
 When performing a write on an old configuration, the configuration should get updated and the write should be performed on the new configuration as well.
-To be able to do a write, while a reconfiguration (state tranfer) is ongoing, we need to write both to the old and new configuration.
+To be able to do a write, while a reconfiguration (state tranfer) is ongoing, we need to write both to the old and new configuration. There may also be multiple newer configurations.
 
 Use the list of configurations in `proto.WriteResponse.Config` to perform a write on one configuration and all its successors.
 Start with the default configuration of the client `c.cfg`.
