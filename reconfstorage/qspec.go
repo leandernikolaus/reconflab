@@ -60,7 +60,7 @@ func (q qspec) ListKeysQCQF(in *proto.ListRequest, replies map[uint32]*proto.Lis
 	return &proto.ListResponse{Keys: allkeys, MConfigs: listCombineMConfs(replies)}, true
 }
 
-func (q qspec) WriteConfigQCQF(in *proto.MetaConfig, replies map[uint32]*proto.WriteResponse) (*proto.WriteResponse, bool) {
+func (q qspec) WriteMetaConfQCQF(in *proto.MetaConfig, replies map[uint32]*proto.WriteResponse) (*proto.WriteResponse, bool) {
 	if numUpdated(replies) <= q.cfgSize/2 {
 		// if all replicas have responded, there must have been another write before ours
 		// that had a newer timestamp
@@ -79,7 +79,7 @@ func newestValue(values map[uint32]*proto.ReadResponse) *proto.ReadResponse {
 	}
 	var newest *proto.ReadResponse
 	for _, v := range values {
-		if v.GetTime().AsTime().After(newest.GetTime().AsTime()) {
+		if newest == nil || v.GetTime().AsTime().After(newest.GetTime().AsTime()) {
 			newest = v
 		}
 	}

@@ -35,13 +35,18 @@ func newClient(addresses []string) *client {
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // disable TLS
 		),
 	)
+
+	log.Println("Manager created")
+	log.Printf("Adddresses %s\n", addresses)
 	// create configuration containing all nodes
 	cfg, err := mgr.NewConfiguration(&qspec{cfgSize: len(addresses)}, gorums.WithNodeList(addresses))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	pcfg := &proto.MetaConfig{Adds: "0-" + fmt.Sprint(len(addresses)), Time: &timestamppb.Timestamp{Seconds: 0, Nanos: 0}}
+	log.Println("Conf created")
+
+	pcfg := &proto.MetaConfig{Adds: "0:" + fmt.Sprint(len(addresses)-1), Time: &timestamppb.Timestamp{Seconds: 1, Nanos: 1}}
 
 	return &client{
 		mgr:  mgr,
@@ -96,8 +101,12 @@ func (c *client) read(key string) *proto.ReadResponse {
 	confmap := map[string]*proto.MetaConfig{c.pcfg.Time.String(): c.pcfg}
 	resp := &proto.ReadResponse{Time: &timestamppb.Timestamp{Seconds: 0, Nanos: 0}}
 
-	for min := getMin(confmap); min != ""; {
-		cfg := c.parseConfiguration(confmap[min].Adds)
+	for min := getMin(confmap); len(confmap) > 0; {
+		cfg, err := c.parseConfiguration(confmap[min].Adds)
+		if err != nil {
+			log.Println(err.Error())
+			continue
+		}
 		minresp := c.readQC(key, cfg)
 
 		// remember Value, if it has larger Time
@@ -145,8 +154,12 @@ func (c *client) list() *proto.ListResponse {
 
 	var keys map[string]bool
 
-	for min := getMin(confmap); min != ""; {
-		cfg := c.parseConfiguration(confmap[min].Adds)
+	for min := getMin(confmap); len(confmap) > 0; {
+		cfg, err := c.parseConfiguration(confmap[min].Adds)
+		if err != nil {
+			log.Println(err.Error())
+			continue
+		}
 		minresp := c.listQC(cfg)
 
 		if len(keys) == 0 {
@@ -183,13 +196,17 @@ func (client) listQC(cfg *proto.Configuration) *proto.ListResponse {
 func (c *client) writeConfig(target *proto.MetaConfig) *proto.WriteResponse {
 	confmap := map[string]*proto.MetaConfig{c.pcfg.Time.String(): c.pcfg}
 
-	for min := getMin(confmap); min != ""; {
+	for min := getMin(confmap); len(confmap) > 0; {
 
 		if target.GetTime().AsTime().Before(confmap[min].GetTime().AsTime()) {
 			return &proto.WriteResponse{New: false}
 		}
 
-		cfg := c.parseConfiguration(confmap[min].Adds)
+		cfg, err := c.parseConfiguration(confmap[min].Adds)
+		if err != nil {
+			log.Println(err.Error())
+			continue
+		}
 		minresp := c.writeConfigQC(target, cfg)
 
 		confmap = c.addConfigs(confmap, confmap[min], minresp.GetMConfigs())
@@ -215,7 +232,11 @@ func (c *client) reconf(newAdds string) {
 
 	goalProtoConf := &proto.MetaConfig{Adds: newAdds, Started: false, Time: timestamppb.Now()}
 	// create a Configuration used for quorum calls.
-	goalCfg := c.parseConfiguration(newAdds)
+	goalCfg, err := c.parseConfiguration(newAdds)
+	if err != nil {
+		log.Printf("Could not create new configuration: %s", newAdds)
+		return
+	}
 
 	// TODO: perform reconfiguration
 
@@ -226,7 +247,7 @@ func (c *client) reconf(newAdds string) {
 	c.pcfg = goalProtoConf
 }
 
-func (c client) parseConfiguration(cfgStr string) (cfg *proto.Configuration) {
+func (c client) parseConfiguration(cfgStr string) (cfg *proto.Configuration, err error) {
 	// configuration using range syntax
 	if i := strings.Index(cfgStr, ":"); i > -1 {
 		var start, stop int
@@ -238,7 +259,7 @@ func (c client) parseConfiguration(cfgStr string) (cfg *proto.Configuration) {
 			start, err = strconv.Atoi(cfgStr[:i])
 			if err != nil {
 				fmt.Printf("Failed to parse configuration: %v\n", err)
-				return nil
+				return nil, err
 			}
 		}
 		if i == len(cfgStr)-1 {
@@ -247,12 +268,12 @@ func (c client) parseConfiguration(cfgStr string) (cfg *proto.Configuration) {
 			stop, err = strconv.Atoi(cfgStr[i+1:])
 			if err != nil {
 				fmt.Printf("Failed to parse configuration: %v\n", err)
-				return nil
+				return nil, err
 			}
 		}
-		if start >= stop || start < 0 || stop >= numNodes {
+		if start >= stop || start < 0 || stop > numNodes {
 			fmt.Println("Invalid configuration.")
-			return nil
+			return nil, fmt.Errorf("could not parse configuration: %s", cfgStr)
 		}
 		nodes := make([]string, 0)
 		for _, node := range c.mgr.Nodes()[start:stop] {
@@ -261,9 +282,9 @@ func (c client) parseConfiguration(cfgStr string) (cfg *proto.Configuration) {
 		cfg, err = c.mgr.NewConfiguration(&qspec{cfgSize: stop - start}, gorums.WithNodeList(nodes))
 		if err != nil {
 			fmt.Printf("Failed to create configuration: %v\n", err)
-			return nil
+			return nil, err
 		}
-		return cfg
+		return cfg, nil
 	}
 	// configuration using list of indices
 	if indices := strings.Split(cfgStr, ","); len(indices) > 0 {
@@ -273,21 +294,21 @@ func (c client) parseConfiguration(cfgStr string) (cfg *proto.Configuration) {
 			i, err := strconv.Atoi(index)
 			if err != nil {
 				fmt.Printf("Failed to parse configuration: %v\n", err)
-				return nil
+				return nil, err
 			}
 			if i < 0 || i >= len(nodes) {
 				fmt.Println("Invalid configuration.")
-				return nil
+				return nil, fmt.Errorf("could not parse configuration: %s", cfgStr)
 			}
 			selectedNodes = append(selectedNodes, nodes[i].Address())
 		}
 		cfg, err := c.mgr.NewConfiguration(&qspec{cfgSize: len(selectedNodes)}, gorums.WithNodeList(selectedNodes))
 		if err != nil {
 			fmt.Printf("Failed to create configuration: %v\n", err)
-			return nil
+			return nil, err
 		}
-		return cfg
+		return cfg, nil
 	}
 	fmt.Println("Invalid configuration.")
-	return nil
+	return nil, fmt.Errorf("could not parse configuration: %s", cfgStr)
 }

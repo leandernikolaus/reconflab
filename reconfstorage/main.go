@@ -36,5 +36,7 @@ func main() {
 		}()
 	}
 
-	Repl(newClient(addrs))
+	client := newClient(addrs)
+	log.Println("Started client")
+	Repl(client)
 }

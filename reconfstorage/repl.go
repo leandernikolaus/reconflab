@@ -307,8 +307,8 @@ func (r repl) cfgc(args []string) {
 		fmt.Println("'cfg' requires a configuration.")
 		return
 	}
-	cfg := r.parseConfiguration(args[0])
-	if cfg == nil {
+	cfg, err := r.parseConfiguration(args[0])
+	if err != nil {
 		return
 	}
 
