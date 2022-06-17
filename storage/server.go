@@ -127,6 +127,11 @@ func (s *storageServer) Write(req *proto.WriteRequest) (*proto.WriteResponse, er
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
+	// TODO:
+	// * if req contains a value for a new key,
+	//      store the value and return New: true
+	// * else if req contains a value with higher timestamp than the previous,
+	//      store the value and return New: true
 	return &proto.WriteResponse{New: false}, nil
 }
 

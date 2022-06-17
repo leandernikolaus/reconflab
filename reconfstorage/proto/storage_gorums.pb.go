@@ -183,12 +183,12 @@ type QuorumSpec interface {
 	// you should implement your quorum function with '_ *ListRequest'.
 	ListKeysQCQF(in *ListRequest, replies map[uint32]*ListResponse) (*ListResponse, bool)
 
-	// WriteConfigQCQF is the quorum function for the WriteConfigQC
+	// WriteMetaConfQCQF is the quorum function for the WriteMetaConfQC
 	// quorum call method. The in parameter is the request object
-	// supplied to the WriteConfigQC method at call time, and may or may not
+	// supplied to the WriteMetaConfQC method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *Config'.
-	WriteConfigQCQF(in *Config, replies map[uint32]*WriteResponse) (*WriteResponse, bool)
+	// you should implement your quorum function with '_ *MetaConfig'.
+	WriteMetaConfQCQF(in *MetaConfig, replies map[uint32]*WriteResponse) (*WriteResponse, bool)
 }
 
 // ReadQC executes the Read Quorum Call on a configuration
@@ -257,19 +257,19 @@ func (c *Configuration) ListKeysQC(ctx context.Context, in *ListRequest) (resp *
 	return res.(*ListResponse), err
 }
 
-// WriteConfigQC is a quorum call invoked on all nodes in configuration c,
+// WriteMetaConfQC is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) WriteConfigQC(ctx context.Context, in *Config) (resp *WriteResponse, err error) {
+func (c *Configuration) WriteMetaConfQC(ctx context.Context, in *MetaConfig) (resp *WriteResponse, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "storage.Storage.WriteConfigQC",
+		Method:  "storage.Storage.WriteMetaConfQC",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*WriteResponse, len(replies))
 		for k, v := range replies {
 			r[k] = v.(*WriteResponse)
 		}
-		return c.qspec.WriteConfigQCQF(req.(*Config), r)
+		return c.qspec.WriteMetaConfQCQF(req.(*MetaConfig), r)
 	}
 
 	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
@@ -331,7 +331,7 @@ type Storage interface {
 	WriteMulticast(ctx gorums.ServerCtx, request *WriteRequest)
 	ListKeysRPC(ctx gorums.ServerCtx, request *ListRequest) (response *ListResponse, err error)
 	ListKeysQC(ctx gorums.ServerCtx, request *ListRequest) (response *ListResponse, err error)
-	WriteConfigQC(ctx gorums.ServerCtx, request *Config) (response *WriteResponse, err error)
+	WriteMetaConfQC(ctx gorums.ServerCtx, request *MetaConfig) (response *WriteResponse, err error)
 }
 
 func RegisterStorageServer(srv *gorums.Server, impl Storage) {
@@ -376,10 +376,10 @@ func RegisterStorageServer(srv *gorums.Server, impl Storage) {
 		resp, err := impl.ListKeysQC(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
-	srv.RegisterHandler("storage.Storage.WriteConfigQC", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
-		req := in.Message.(*Config)
+	srv.RegisterHandler("storage.Storage.WriteMetaConfQC", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+		req := in.Message.(*MetaConfig)
 		defer ctx.Release()
-		resp, err := impl.WriteConfigQC(ctx, req)
+		resp, err := impl.WriteMetaConfQC(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
 }

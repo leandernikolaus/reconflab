@@ -34,12 +34,13 @@ service Storage {
     option (gorums.quorumcall) = true;
   }
 
-  rpc WriteConfigQC(Config) returns (WriteResponse) {
+  rpc WriteMetaConfQC(MetaConfig) returns (WriteResponse) {
     option (gorums.quorumcall) = true;
   }
 }
 
-message Config {
+// A message containing meta information for a configuration
+message MetaConfig {
   bool Started = 1;
   string Adds = 2;
   google.protobuf.Timestamp Time = 3;
@@ -51,7 +52,7 @@ message ReadResponse {
   bool OK = 1;
   string Value = 2;
   google.protobuf.Timestamp Time = 3;
-  repeated Config Config = 4;
+  repeated MetaConfig MConfigs = 4;
 }
 
 message WriteRequest {
@@ -62,12 +63,12 @@ message WriteRequest {
 
 message WriteResponse { 
   bool New = 1; 
-  repeated Config Config = 2;
+  repeated MetaConfig MConfigs = 2;
 }
 
 message ListRequest { }
 
 message ListResponse {
   repeated string Keys = 1;
-  repeated Config Config = 2;
+  repeated MetaConfig MConfigs = 2;
 }

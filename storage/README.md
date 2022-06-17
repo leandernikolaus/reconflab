@@ -41,7 +41,7 @@ func (s *storageServer) Write(req *proto.WriteRequest) (*proto.WriteResponse, er
 
 To compare `s.Time` and `req.Time` you can use:
 ```go
-s.Time.Before(req.GetTime().AsTime())
+value.Time.Before(req.GetTime().AsTime())
 ```
 
 ### #2 Write the quorum function for writes
@@ -80,7 +80,7 @@ go build
 * Invoke an individual rpc on server 0 overwriting the previous value: `rpc 0 write foo spam`
 * Invoke an individual rpc on server 1 writing to a new key: `rpc 0 write hello world`
 * Invoke a quorum call to read the value `qc read foo` *Do you read the first or second value every time?*
-* Change the default configuration on the client to only include servers 1,2,3: `cfg 1-4`
+* Change the default configuration on the client to only include servers 1,2,3: `cfg 1:4`
 * Invoke a quorum call listing all available keys: `qc list`
 
 *If different read-PRCs in one quorum call return values with different timestamps, which one is returned?*

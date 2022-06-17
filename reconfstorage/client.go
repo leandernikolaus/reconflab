@@ -19,7 +19,7 @@ import (
 type client struct {
 	mgr  *proto.Manager
 	cfg  *proto.Configuration
-	pcfg *proto.Config
+	pcfg *proto.MetaConfig
 }
 
 func newClient(addresses []string) *client {
@@ -41,7 +41,7 @@ func newClient(addresses []string) *client {
 		log.Fatal(err)
 	}
 
-	pcfg := &proto.Config{Adds: "0-" + fmt.Sprint(len(addresses)), Time: &timestamppb.Timestamp{Seconds: 0, Nanos: 0}}
+	pcfg := &proto.MetaConfig{Adds: "0-" + fmt.Sprint(len(addresses)), Time: &timestamppb.Timestamp{Seconds: 0, Nanos: 0}}
 
 	return &client{
 		mgr:  mgr,
@@ -52,12 +52,12 @@ func newClient(addresses []string) *client {
 
 // find config with minimal timestamp
 // return its key
-func getMin(configs map[string]*proto.Config) string {
+func getMin(configs map[string]*proto.MetaConfig) string {
 	if len(configs) == 0 {
 		return ""
 	}
 
-	var min string
+	min := ""
 
 	for s, config := range configs {
 		if min == "" || config.Time.AsTime().After(configs[min].Time.AsTime()) {
@@ -71,12 +71,12 @@ func getMin(configs map[string]*proto.Config) string {
 // newer confgs are added to the confmap
 // if a newer started configuration is found, this is the only returned function
 // and the client state is updated
-func (c *client) addConfigs(confmap map[string]*proto.Config, cur *proto.Config, newconfigs []*proto.Config) map[string]*proto.Config {
+func (c *client) addConfigs(confmap map[string]*proto.MetaConfig, cur *proto.MetaConfig, newconfigs []*proto.MetaConfig) map[string]*proto.MetaConfig {
 	for _, cc := range newconfigs {
 		if TimeBefore(cur.GetTime(), cc.GetTime()) {
 			if cc.GetStarted() {
 				//empty map
-				confmap = make(map[string]*proto.Config, 1)
+				confmap = make(map[string]*proto.MetaConfig, 1)
 
 				//update client state
 				c.pcfg = cc
@@ -93,7 +93,7 @@ func TimeBefore(a, b *timestamppb.Timestamp) bool {
 }
 
 func (c *client) read(key string) *proto.ReadResponse {
-	confmap := map[string]*proto.Config{c.pcfg.Time.String(): c.pcfg}
+	confmap := map[string]*proto.MetaConfig{c.pcfg.Time.String(): c.pcfg}
 	resp := &proto.ReadResponse{Time: &timestamppb.Timestamp{Seconds: 0, Nanos: 0}}
 
 	for min := getMin(confmap); min != ""; {
@@ -105,7 +105,7 @@ func (c *client) read(key string) *proto.ReadResponse {
 			resp = minresp
 		}
 
-		confmap = c.addConfigs(confmap, confmap[min], minresp.GetConfig())
+		confmap = c.addConfigs(confmap, confmap[min], minresp.GetMConfigs())
 		delete(confmap, min)
 	}
 	return resp
@@ -141,7 +141,7 @@ func (client) writeQC(key, value string, cfg *proto.Configuration) *proto.WriteR
 }
 
 func (c *client) list() *proto.ListResponse {
-	confmap := map[string]*proto.Config{c.pcfg.Time.String(): c.pcfg}
+	confmap := map[string]*proto.MetaConfig{c.pcfg.Time.String(): c.pcfg}
 
 	var keys map[string]bool
 
@@ -156,7 +156,7 @@ func (c *client) list() *proto.ListResponse {
 			keys[k] = true
 		}
 
-		confmap = c.addConfigs(confmap, confmap[min], minresp.GetConfig())
+		confmap = c.addConfigs(confmap, confmap[min], minresp.GetMConfigs())
 		delete(confmap, min)
 
 	}
@@ -180,8 +180,8 @@ func (client) listQC(cfg *proto.Configuration) *proto.ListResponse {
 	return resp
 }
 
-func (c *client) writeConfig(target *proto.Config) *proto.WriteResponse {
-	confmap := map[string]*proto.Config{c.pcfg.Time.String(): c.pcfg}
+func (c *client) writeConfig(target *proto.MetaConfig) *proto.WriteResponse {
+	confmap := map[string]*proto.MetaConfig{c.pcfg.Time.String(): c.pcfg}
 
 	for min := getMin(confmap); min != ""; {
 
@@ -192,7 +192,7 @@ func (c *client) writeConfig(target *proto.Config) *proto.WriteResponse {
 		cfg := c.parseConfiguration(confmap[min].Adds)
 		minresp := c.writeConfigQC(target, cfg)
 
-		confmap = c.addConfigs(confmap, confmap[min], minresp.GetConfig())
+		confmap = c.addConfigs(confmap, confmap[min], minresp.GetMConfigs())
 		delete(confmap, min)
 
 	}
@@ -200,9 +200,9 @@ func (c *client) writeConfig(target *proto.Config) *proto.WriteResponse {
 	return &proto.WriteResponse{New: true}
 }
 
-func (client) writeConfigQC(conf *proto.Config, cfg *proto.Configuration) *proto.WriteResponse {
+func (client) writeConfigQC(conf *proto.MetaConfig, cfg *proto.Configuration) *proto.WriteResponse {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	resp, err := cfg.WriteConfigQC(ctx, conf)
+	resp, err := cfg.WriteMetaConfQC(ctx, conf)
 	cancel()
 	if err != nil {
 		fmt.Printf("ListKeys RPC finished with error: %v\n", err)
@@ -213,7 +213,7 @@ func (client) writeConfigQC(conf *proto.Config, cfg *proto.Configuration) *proto
 
 func (c *client) reconf(newAdds string) {
 
-	goalProtoConf := &proto.Config{Adds: newAdds, Started: false, Time: timestamppb.Now()}
+	goalProtoConf := &proto.MetaConfig{Adds: newAdds, Started: false, Time: timestamppb.Now()}
 	// create a Configuration used for quorum calls.
 	goalCfg := c.parseConfiguration(newAdds)
 

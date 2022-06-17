@@ -11,7 +11,7 @@ This system extends the [non-reconfigurable version](../storage/).
 ### Representing configurations
 For simplicity we only use majority quorums.
 We use a somewhat simplified variant to represent servers in a configuration as strings:
-* A string `"1-4"` represents the servers stored at index 1,2, and 3 on the client. When using multiple clients, make sure server addresses are submitted in the same order.
+* A string `"1:4"` represents the servers stored at index 1,2, and 3 on the client. When using multiple clients, make sure server addresses are submitted in the same order.
 * A string `"0,2,3"` represents the servers stored at index 0,2, and 3 on the client.
 
 *Method `c.parseConfiguration()` in `client.go` can be used to convert these string into a `Configuration` from the Gorums library, on which quorum call can be invoked.*
@@ -29,6 +29,8 @@ message Config {
 * `Time` is a timestamp to distinguish old and new configurations.
 * `Started` indicates whether a reconfiguration towards this configuration was completed.
 
+**Timestamps are assumed to be unique.**
+
 ### Configuration handling server side
 
 In this system, the server does not handle RPCs differently depending on the configuration on which they are invoked. 
@@ -43,7 +45,9 @@ The Gorums server includes a new Quorum Call `WriteConfigQC` this can be used to
 
 ### #1 Configuration handling server side
 
+
 Implement the RPC handler used to handle a `WriteConfigQC`.
+
 Add the new configuration to the `s.configs`. However, consider the following:
 
 **If a server knows a started configuration all earlier configurations (lower timestamp) can be removed.**
@@ -56,16 +60,17 @@ func (s *storageServer) WriteConfig(req *proto.Config) (*proto.WriteResponse, er
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	// add new configuration, consider if it is old or started.
+	// add new configuration, consider if it is started
+	// consider if it is older than a started configuration
 
-	return &proto.WriteResponse{New: true, Config: s.configs}, nil
+	return &proto.WriteResponse{New: true, MConfigs s.configs}, nil
 }
 ```
 
 ### #2 Implement a reconfiguration procedure
 
 Implement a simple reconfiguration procedure that 
-* stops the old configuration by informing it about the new configuration,
+* informs the old configuration about the new configuration,
 * gets a list of keys from the old configuration,
 * reads values from the old configuration and writes them to the new configuration,
 * starts the new configuration, by informing the servers that the new configuration is started.
@@ -113,7 +118,7 @@ func (c *client) write(key, value string) *proto.WriteResponse {
 ```
 
 * Try first without looking how the same is done for the read.
-* Does your implementation handle the case where configuration C1 reference C2, which again references C3?
+* Does your implementation handle the case where configuration C1 references C2, which again references C3?
 
 *Optional: If you find a started configuration, you can skip older configurations and also update the default configuration of the client.*
 
