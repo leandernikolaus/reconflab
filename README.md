@@ -1,6 +1,6 @@
 # Reconfiguration of replicated systems
 
-This repository contains exercises for my lecture on reconfigurable replicated systems.
+This repository contains exercises for my lecture on reconfigurable replicated systems. Slides can be found [here](./reconfiguration.pdf).
 Exercises are small programming tasks. Examples are build using the [Gorums](https://github.com/relab/gorums/blob/master/doc/user-guide.md) RPC framework.
 
 * [storage](./storage/) contains some small tasks to get to know the example application and the Gorums framework.
